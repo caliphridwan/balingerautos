@@ -22,8 +22,9 @@ const text = (max: number) => z.preprocess(blank, z.string().trim().max(max).opt
 const url = z.preprocess(blank, z.string().trim().url("Enter a full https:// link.").refine((u) => u.startsWith("https://") || u.startsWith("/"), "Use https://").optional());
 const int = z.preprocess(blank, z.coerce.number().int().min(0).max(10_000_000).optional());
 const bool = z.preprocess((v) => v === "on" || v === "true", z.boolean());
+// Turns missing optional values into null (clears the column); required fields keep their type.
 const nullify = <T extends Record<string, unknown>>(o: T) =>
-  Object.fromEntries(Object.entries(o).map(([k, v]) => [k, v === undefined ? null : v])) as { [K in keyof T]: Exclude<T[K], undefined> | null };
+  Object.fromEntries(Object.entries(o).map(([k, v]) => [k, v === undefined ? null : v])) as { [K in keyof T]-?: undefined extends T[K] ? Exclude<T[K], undefined> | null : T[K] };
 
 /** Image inputs post JSON {publicId?, url?}. New uploads are verified; unchanged URLs are kept. */
 async function resolveImage(raw: FormDataEntryValue | null, current: string | null): Promise<string | null | "invalid"> {
