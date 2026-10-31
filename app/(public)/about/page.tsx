@@ -61,7 +61,7 @@ export default async function AboutPage() {
             ) : (
               <p className="text-[17px] leading-[1.8] text-ink-body">
                 Balinger Autos was founded on a simple belief: buying an exceptional vehicle should feel as considered as the
-                vehicle itself.
+                vehicle itself.<br/> CEO: Alhaji. AbdulAzeez Pharmacos
               </p>
             )}
           </div>
