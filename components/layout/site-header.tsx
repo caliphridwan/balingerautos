@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Menu, MessageCircle, Phone, X } from "lucide-react";
 import { primaryNav } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
@@ -16,7 +16,18 @@ interface SiteHeaderProps {
 
 export function SiteHeader({ phoneHref, phoneLabel, whatsappHref }: SiteHeaderProps) {
   const [open, setOpen] = useState(false);
+  const [menuTop, setMenuTop] = useState(85);
+  const headerRef = useRef<HTMLElement>(null);
   const pathname = usePathname();
+
+  // Start the mobile menu exactly under the header (it moves when the announcement bar is showing).
+  useEffect(() => {
+    if (!open) return;
+    const place = () => setMenuTop(Math.max(0, headerRef.current?.getBoundingClientRect().bottom ?? 85));
+    place();
+    window.addEventListener("resize", place);
+    return () => window.removeEventListener("resize", place);
+  }, [open]);
 
   // Close the mobile menu on navigation and lock body scroll while open.
   useEffect(() => setOpen(false), [pathname]);
@@ -28,7 +39,8 @@ export function SiteHeader({ phoneHref, phoneLabel, whatsappHref }: SiteHeaderPr
   }, [open]);
 
   return (
-    <header className="sticky top-0 z-40 border-b border-graphite-line/60 bg-obsidian/95 text-white backdrop-blur supports-[backdrop-filter]:bg-obsidian/85">
+    <>
+    <header ref={headerRef} className="sticky top-0 z-40 border-b border-graphite-line/60 bg-obsidian/95 text-white backdrop-blur supports-[backdrop-filter]:bg-obsidian/85">
       <div className="mx-auto flex max-w-content items-center justify-between gap-6 px-6 py-5">
         <Logo />
         <nav aria-label="Primary" className="hidden lg:block">
@@ -73,9 +85,12 @@ export function SiteHeader({ phoneHref, phoneLabel, whatsappHref }: SiteHeaderPr
           </button>
         </div>
       </div>
+    </header>
 
+      {/* Rendered outside <header>: the header's backdrop blur would otherwise trap this
+          fixed panel inside the header's own box, so it never appeared. */}
       {open ? (
-        <div id="mobile-menu" className="fixed inset-x-0 bottom-0 top-[85px] z-40 overflow-y-auto bg-obsidian lg:hidden">
+        <div id="mobile-menu" style={{ top: menuTop }} className="fixed inset-x-0 bottom-0 z-30 overflow-y-auto bg-obsidian text-white lg:hidden">
           <nav aria-label="Mobile" className="flex flex-col gap-8 px-6 py-10">
             <ul className="flex flex-col">
               {primaryNav.map((item) => (
@@ -110,6 +125,6 @@ export function SiteHeader({ phoneHref, phoneLabel, whatsappHref }: SiteHeaderPr
           </nav>
         </div>
       ) : null}
-    </header>
+    </>
   );
 }
