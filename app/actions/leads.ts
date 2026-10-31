@@ -30,7 +30,8 @@ type LeadResult = ActionResult<{ reference: string }>;
 const TOO_MANY = "You've sent several requests in a short time. Please wait a few minutes, or contact us directly.";
 const BOT_OK: LeadResult = { ok: true, message: "Thank you — we'll be in touch shortly.", data: { reference: "—" } };
 
-function handleError(scope: string, error: unknown): LeadResult {
+// Always a failure result, so it fits any action's result type.
+function handleError(scope: string, error: unknown): ActionResult<never> {
   if (error instanceof LeadError) return fail(error.message);
   return unexpected(scope, error);
 }
