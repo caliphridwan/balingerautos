@@ -134,6 +134,13 @@ middleware.ts            Session gate for /admin and /api/admin
 
 **Render**: Web Service with Build Command
 `npm install && npx prisma migrate deploy && npm run build` and Start Command `npm start`.
+The build does **not** seed the database. Run the seed once against the Render database, either from the
+service's Shell (`npm run db:seed`) or from your own computer with `DATABASE_URL` and `DIRECT_URL` set to
+Render's *External* database URL. Add the Cloudinary keys on Render too, or admin photo uploads are disabled.
+
+**Photos missing after deploy?**
+1. Run `npm run check:images` with `DATABASE_URL` set to the live database. "No photos saved" means the seed hasn't run there.
+2. If photos are saved but don't show, open one in the browser as `https://your-site/_next/image?url=<photo url>&w=640&q=75`. An error or a long wait means the image resizer is struggling on a small plan: set `IMAGES_UNOPTIMIZED=true` in Render's environment and redeploy.
 
 Notes:
 - Rate limiting (`lib/rate-limit-core.ts`) is in-memory per instance. If you run several instances, swap it for a shared store such as Upstash Redis; the call sites stay the same.

@@ -3,7 +3,12 @@ const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
   images: {
-    formats: ["image/avif", "image/webp"],
+    // WebP only: AVIF encoding is very slow on small hosting plans (e.g. Render
+    // free/starter) and can time out, which leaves photo slots empty.
+    formats: ["image/webp"],
+    // Escape hatch: set IMAGES_UNOPTIMIZED=true to serve photos straight from
+    // Cloudinary/Unsplash without the Next.js resizer.
+    unoptimized: process.env.IMAGES_UNOPTIMIZED === "true",
     remotePatterns: [
       { protocol: "https", hostname: "res.cloudinary.com" },
       // Demo photography from the seed (Unsplash). Remove once all photos are your own.
