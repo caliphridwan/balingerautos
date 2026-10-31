@@ -1,0 +1,659 @@
+// Balinger Autos — database schema
+// PostgreSQL via Prisma ORM.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Enums
+// ─────────────────────────────────────────────────────────────────────
+
+enum UserRole {
+  SUPER_ADMIN
+  ADMIN
+  SALES_MANAGER
+  SALES_REPRESENTATIVE
+}
+
+enum VehicleStatus {
+  AVAILABLE
+  RESERVED
+  SOLD
+  ARCHIVED
+}
+
+enum VehicleCondition {
+  NEW
+  USED
+  CERTIFIED_PRE_OWNED
+}
+
+enum FuelType {
+  PETROL
+  DIESEL
+  HYBRID
+  PLUG_IN_HYBRID
+  ELECTRIC
+}
+
+enum TransmissionType {
+  AUTOMATIC
+  MANUAL
+  SEMI_AUTOMATIC
+  CVT
+}
+
+enum BodyType {
+  SUV
+  SEDAN
+  COUPE
+  CONVERTIBLE
+  HATCHBACK
+  WAGON
+  PICKUP
+  CROSSOVER
+  VAN
+}
+
+enum Drivetrain {
+  FWD
+  RWD
+  AWD
+  FOUR_WD
+}
+
+enum FeatureGroup {
+  KEY
+  SAFETY
+  COMFORT
+  TECHNOLOGY
+}
+
+enum EnquiryType {
+  VEHICLE
+  GENERAL
+  CALLBACK
+  TEST_DRIVE
+  INSPECTION
+  SOURCING
+  FINANCING
+  TRADE_IN
+  RESERVATION
+}
+
+enum EnquiryStatus {
+  NEW
+  CONTACTED
+  FOLLOW_UP
+  QUALIFIED
+  CONVERTED
+  CLOSED
+  CANCELLED
+}
+
+enum AppointmentStatus {
+  PENDING
+  CONFIRMED
+  RESCHEDULED
+  COMPLETED
+  REJECTED
+  CANCELLED
+  NO_SHOW
+}
+
+enum CommunicationChannel {
+  NOTE
+  PHONE
+  EMAIL
+  WHATSAPP
+  IN_PERSON
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  ABANDONED
+  REFUNDED
+  /// Paid, but the vehicle was no longer available — must be refunded.
+  NEEDS_REFUND
+}
+
+enum PaymentPurpose {
+  RESERVATION_DEPOSIT
+}
+
+enum ContactMessageStatus {
+  NEW
+  READ
+  REPLIED
+  ARCHIVED
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Staff & access
+// ─────────────────────────────────────────────────────────────────────
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  name         String
+  phone        String?
+  passwordHash String
+  role         UserRole  @default(SALES_REPRESENTATIVE)
+  isActive     Boolean   @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  vehiclesCreated     Vehicle[]                       @relation("VehicleCreatedBy")
+  assignments         SalesRepresentativeAssignment[] @relation("AssignedRep")
+  assignmentsMade     SalesRepresentativeAssignment[] @relation("AssignedBy")
+  communications      EnquiryCommunication[]
+  testDrivesAssigned  TestDriveBooking[]
+  notifications       Notification[]
+  activityLogs        ActivityLog[]
+
+  @@index([role, isActive])
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Inventory
+// ─────────────────────────────────────────────────────────────────────
+
+model VehicleCategory {
+  id          String    @id @default(cuid())
+  name        String    @unique
+  slug        String    @unique
+  description String?
+  position    Int       @default(0)
+  isVisible   Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  vehicles    Vehicle[]
+
+  @@index([isVisible, position])
+}
+
+model Vehicle {
+  id               String           @id @default(cuid())
+  slug             String           @unique
+  stockNumber      String           @unique
+  vin              String?          @unique
+  showVin          Boolean          @default(false)
+
+  make             String
+  model            String
+  trim             String?
+  year             Int
+  bodyType         BodyType
+  condition        VehicleCondition
+  status           VehicleStatus    @default(AVAILABLE)
+
+  price            Decimal          @db.Decimal(15, 2)
+  currency         String           @default("NGN") @db.Char(3)
+  priceOnRequest   Boolean          @default(false)
+
+  mileage          Int
+  transmission     TransmissionType
+  fuelType         FuelType
+  drivetrain       Drivetrain?
+  engineCapacityCc Int?
+  horsepower       Int?
+  doors            Int?
+  seats            Int?
+  exteriorColour   String
+  interiorColour   String?
+
+  description      String?          @db.Text
+  inspectionNotes  String?          @db.Text
+  inspectedAt      DateTime?
+  serviceHistory   String?
+  previousOwners   Int?
+  videoUrl         String?
+
+  isFeatured       Boolean          @default(false)
+  isPublished      Boolean          @default(false)
+  publishedAt      DateTime?
+  soldAt           DateTime?
+  reservedUntil    DateTime?
+  viewCount        Int              @default(0)
+
+  metaTitle        String?
+  metaDescription  String?
+
+  createdById      String?
+  createdBy        User?            @relation("VehicleCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  images           VehicleImage[]
+  features         VehicleFeature[]
+  categories       VehicleCategory[]
+  enquiries        VehicleEnquiry[]
+  testDrives       TestDriveBooking[]
+  financing        FinancingEnquiry[]
+  tradeInsTowards  TradeInEnquiry[]
+  payments         Payment[]
+
+  @@index([isPublished, status, createdAt(sort: Desc)])
+  @@index([make, model])
+  @@index([price])
+  @@index([year])
+  @@index([mileage])
+  @@index([bodyType])
+  @@index([fuelType])
+  @@index([isFeatured, isPublished])
+}
+
+model VehicleImage {
+  id        String   @id @default(cuid())
+  vehicleId String
+  vehicle   Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  url       String
+  publicId  String?  // Cloudinary public_id, used for deletion/transforms
+  alt       String?
+  width     Int?
+  height    Int?
+  position  Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([vehicleId, position])
+}
+
+model VehicleFeature {
+  id        String       @id @default(cuid())
+  vehicleId String
+  vehicle   Vehicle      @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  group     FeatureGroup @default(KEY)
+  label     String
+  position  Int          @default(0)
+
+  @@unique([vehicleId, group, label])
+  @@index([vehicleId, group, position])
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Customers & leads
+// ─────────────────────────────────────────────────────────────────────
+
+model Customer {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  fullName  String
+  phone     String?
+  notes     String?  @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  enquiries  VehicleEnquiry[]
+  testDrives TestDriveBooking[]
+  payments   Payment[]
+
+  @@index([fullName])
+}
+
+/// The lead record. Every customer request (vehicle question, callback,
+/// test drive, financing, trade-in, sourcing, reservation) creates one of these;
+/// type-specific details live in the 1:1 tables below.
+model VehicleEnquiry {
+  id          String        @id @default(cuid())
+  reference   String        @unique // human-friendly, e.g. ENQ-24-00042
+  type        EnquiryType
+  status      EnquiryStatus @default(NEW)
+
+  customerId  String
+  customer    Customer      @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  vehicleId   String?
+  vehicle     Vehicle?      @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+
+  message          String?   @db.Text
+  preferredContact String?   // "email" | "phone" | "whatsapp"
+  source           String?   // "vehicle_page", "contact_form", "services", ...
+  followUpAt  DateTime?
+  closedAt    DateTime?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  testDrive      TestDriveBooking?
+  financing      FinancingEnquiry?
+  tradeIn        TradeInEnquiry?
+  assignments    SalesRepresentativeAssignment[]
+  communications EnquiryCommunication[]
+  payments       Payment[]
+
+  @@index([status, createdAt(sort: Desc)])
+  @@index([type, createdAt(sort: Desc)])
+  @@index([customerId])
+  @@index([vehicleId])
+  @@index([followUpAt])
+}
+
+/// Internal notes and communication history on an enquiry.
+model EnquiryCommunication {
+  id        String               @id @default(cuid())
+  enquiryId String
+  enquiry   VehicleEnquiry       @relation(fields: [enquiryId], references: [id], onDelete: Cascade)
+  authorId  String?
+  author    User?                @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  channel   CommunicationChannel @default(NOTE)
+  body      String               @db.Text
+  createdAt DateTime             @default(now())
+
+  @@index([enquiryId, createdAt])
+}
+
+model SalesRepresentativeAssignment {
+  id           String         @id @default(cuid())
+  enquiryId    String
+  enquiry      VehicleEnquiry @relation(fields: [enquiryId], references: [id], onDelete: Cascade)
+  userId       String
+  user         User           @relation("AssignedRep", fields: [userId], references: [id], onDelete: Restrict)
+  assignedById String?
+  assignedBy   User?          @relation("AssignedBy", fields: [assignedById], references: [id], onDelete: SetNull)
+  isActive     Boolean        @default(true)
+  assignedAt   DateTime       @default(now())
+  endedAt      DateTime?
+
+  @@index([userId, isActive])
+  @@index([enquiryId, isActive])
+}
+
+model TestDriveBooking {
+  id            String            @id @default(cuid())
+  enquiryId     String?           @unique
+  enquiry       VehicleEnquiry?   @relation(fields: [enquiryId], references: [id], onDelete: SetNull)
+  customerId    String
+  customer      Customer          @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  vehicleId     String
+  vehicle       Vehicle           @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+
+  preferredDate DateTime          @db.Date
+  preferredTime String            // "HH:mm", showroom local time
+  scheduledAt   DateTime?         // set when confirmed; used for conflict checks
+  durationMins  Int               @default(45)
+  status        AppointmentStatus @default(PENDING)
+  message       String?           @db.Text
+  outcome       String?           @db.Text
+
+  assignedToId  String?
+  assignedTo    User?             @relation(fields: [assignedToId], references: [id], onDelete: SetNull)
+
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  @@index([vehicleId, scheduledAt])
+  @@index([status, preferredDate])
+  @@index([assignedToId, scheduledAt])
+}
+
+model FinancingEnquiry {
+  id                String         @id @default(cuid())
+  enquiryId         String         @unique
+  enquiry           VehicleEnquiry @relation(fields: [enquiryId], references: [id], onDelete: Cascade)
+  vehicleId         String?
+  vehicle           Vehicle?       @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  vehiclePrice      Decimal?       @db.Decimal(15, 2)
+  proposedDeposit   Decimal?       @db.Decimal(15, 2)
+  termMonths        Int?
+  employmentStatus  String?
+  employerName      String?
+  additionalDetails String?        @db.Text
+  createdAt         DateTime       @default(now())
+}
+
+model TradeInEnquiry {
+  id              String         @id @default(cuid())
+  enquiryId       String         @unique
+  enquiry         VehicleEnquiry @relation(fields: [enquiryId], references: [id], onDelete: Cascade)
+  targetVehicleId String?
+  targetVehicle   Vehicle?       @relation(fields: [targetVehicleId], references: [id], onDelete: SetNull)
+  make            String
+  model           String
+  year            Int
+  mileage         Int
+  condition       String
+  expectedValue   Decimal?       @db.Decimal(15, 2)
+  imageUrls       String[]
+  createdAt       DateTime       @default(now())
+}
+
+/// Online payments via Paystack (amounts in naira; sent to Paystack in kobo).
+model Payment {
+  id              String         @id @default(cuid())
+  reference       String         @unique // our reference, also used as the Paystack reference
+  purpose         PaymentPurpose @default(RESERVATION_DEPOSIT)
+  status          PaymentStatus  @default(PENDING)
+  amount          Decimal        @db.Decimal(15, 2)
+  currency        String         @default("NGN") @db.Char(3)
+  email           String
+
+  customerId      String
+  customer        Customer       @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  vehicleId       String
+  vehicle         Vehicle        @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+  enquiryId       String?
+  enquiry         VehicleEnquiry? @relation(fields: [enquiryId], references: [id], onDelete: SetNull)
+
+  accessCode      String?
+  authorizationUrl String?
+  channel         String?        // card, bank, ussd, bank_transfer…
+  gatewayResponse String?
+  paystackId      String?
+  paidAt          DateTime?
+  refundedAt      DateTime?
+  notes           String?        @db.Text
+
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@index([status, createdAt(sort: Desc)])
+  @@index([vehicleId, status])
+  @@index([customerId])
+}
+
+model ContactMessage {
+  id        String               @id @default(cuid())
+  fullName  String
+  email     String
+  phone     String?
+  category  EnquiryType          @default(GENERAL)
+  subject   String?
+  message   String               @db.Text
+  status    ContactMessageStatus @default(NEW)
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
+
+  @@index([status, createdAt(sort: Desc)])
+  @@index([email])
+}
+
+model NewsletterSubscriber {
+  id             String    @id @default(cuid())
+  email          String    @unique
+  isSubscribed   Boolean   @default(true)
+  source         String?
+  unsubscribedAt DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Content (CMS)
+// ─────────────────────────────────────────────────────────────────────
+
+model Testimonial {
+  id           String   @id @default(cuid())
+  customerName String
+  location     String?
+  vehicleLabel String?
+  quote        String   @db.Text
+  rating       Int?     // 1–5, optional
+  isPublished  Boolean  @default(false)
+  position     Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([isPublished, position])
+}
+
+model FAQ {
+  id          String   @id @default(cuid())
+  question    String
+  answer      String   @db.Text
+  category    String?
+  position    Int      @default(0)
+  isPublished Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([isPublished, position])
+}
+
+/// Single-row table (id = "default") holding all editable site content
+/// and business configuration.
+model SiteSettings {
+  id                   String   @id @default("default")
+  businessName         String   @default("Balinger Autos")
+  tagline              String   @default("Driven by Excellence. Defined by Trust.")
+
+  announcementText     String?
+  announcementLinkText String?
+  announcementLinkUrl  String?
+
+  heroEyebrow          String   @default("Driven by Excellence · Defined by Trust")
+  heroHeading          String   @default("Discover Excellence. Drive Your Dreams.")
+  heroSubheading       String   @default("Experience a higher standard of automotive excellence. Discover exceptional vehicles, carefully selected to match your lifestyle and expectations.")
+  heroImageUrl         String?
+  heroImageAlt         String?
+
+  promoEyebrow         String?
+  promoHeading         String?
+  promoBody            String?
+  promoCtaText         String?
+  promoCtaUrl          String?
+  promoImageUrl        String?
+
+  /// Homepage statistics. Null = not shown. Never fabricate these.
+  statVehiclesSold     Int?
+  statCustomers        Int?
+  statYearsExperience  Int?
+  /// When true, "Vehicles Available" is counted live from inventory.
+  statLiveAvailability Boolean  @default(true)
+
+  aboutHeading         String?
+  aboutStory           String?  @db.Text
+  mission              String   @default("To redefine the automotive purchasing experience by providing exceptional vehicles, transparent transactions and personalised customer service, making quality automobile ownership accessible, convenient and rewarding.") @db.Text
+  vision               String   @default("To become a leading and trusted automotive dealership, recognised for excellence, integrity, innovation and an unwavering commitment to customer satisfaction.") @db.Text
+  aboutImageUrl        String?
+
+  phone                String?
+  whatsappNumber       String?  // international format, digits only, e.g. 2348012345678
+  email                String?
+  addressLine          String?
+  city                 String?
+  country              String?
+  mapEmbedUrl          String?
+  /// e.g. [{ "days": "Mon – Fri", "hours": "9:00 – 18:00" }]
+  openingHours         Json?
+
+  instagramUrl         String?
+  facebookUrl          String?
+  xUrl                 String?
+  youtubeUrl           String?
+  tiktokUrl            String?
+  linkedinUrl          String?
+
+  footerText           String?
+  businessRegistration String?
+
+  currency             String   @default("NGN") @db.Char(3)
+  locale               String   @default("en-NG")
+  mileageUnit          String   @default("km")
+  timezone             String   @default("Africa/Lagos")
+  /// Optional approximate display currencies: [{ "code": "NGN", "rate": 1550 }]
+  /// (rate = units of that currency per 1 unit of the base currency).
+  altCurrencies        Json?
+  altCurrenciesNote    String?
+  assistantEnabled     Boolean  @default(true)
+
+  /// Online reservation deposits via Paystack.
+  reservationDepositEnabled Boolean  @default(false)
+  reservationDepositAmount  Decimal  @default(500000) @db.Decimal(15, 2)
+  reservationHoldDays       Int      @default(7)
+
+  seoTitle             String?
+  seoDescription       String?
+  ogImageUrl           String?
+
+  updatedAt            DateTime @updatedAt
+}
+
+model TeamMember {
+  id          String   @id @default(cuid())
+  name        String
+  role        String
+  bio         String?  @db.Text
+  photoUrl    String?
+  position    Int      @default(0)
+  isPublished Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([isPublished, position])
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// System
+// ─────────────────────────────────────────────────────────────────────
+
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String?   // null = broadcast to all admins
+  user      User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String
+  title     String
+  body      String?
+  link      String?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, readAt])
+  @@index([createdAt(sort: Desc)])
+}
+
+model ActivityLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  actor      User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  action     String   // e.g. "vehicle.status_changed"
+  entityType String   // e.g. "Vehicle"
+  entityId   String
+  summary    String?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([actorId, createdAt(sort: Desc)])
+  @@index([createdAt(sort: Desc)])
+}
+
+/// Inventory searches, for search analytics.
+model SearchEvent {
+  id          String   @id @default(cuid())
+  query       String?
+  filters     Json
+  resultCount Int
+  createdAt   DateTime @default(now())
+
+  @@index([createdAt(sort: Desc)])
+}

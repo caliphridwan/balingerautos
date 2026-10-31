@@ -1,0 +1,68 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
+  }
+  body {
+    @apply bg-ivory font-sans text-obsidian antialiased;
+  }
+  ::selection {
+    @apply bg-champagne text-obsidian;
+  }
+  :focus-visible {
+    @apply outline outline-2 outline-offset-2 outline-champagne;
+  }
+  summary {
+    list-style: none;
+  }
+  summary::-webkit-details-marker {
+    display: none;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+@layer components {
+  .eyebrow {
+    @apply text-xs font-bold uppercase tracking-eyebrow;
+  }
+  .heading-display {
+    @apply font-display font-normal leading-[1.1] text-balance;
+  }
+  /* Subtle hairline texture used behind photography placeholders */
+  .texture-hairline {
+    background-image: repeating-linear-gradient(
+      135deg,
+      rgb(255 255 255 / 0.03) 0 1px,
+      transparent 1px 20px
+    );
+  }
+  .field {
+    @apply h-12 w-full rounded border border-[#D4D1C8] bg-white px-3 text-[15px] font-medium text-obsidian placeholder:text-ink-muted focus:border-obsidian focus:outline-none;
+  }
+  .field-label {
+    @apply flex flex-col gap-1.5 text-[11px] font-bold uppercase tracking-[0.16em] text-ink-muted;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+  .text-pretty {
+    text-wrap: pretty;
+  }
+}
